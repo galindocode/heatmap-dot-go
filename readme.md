@@ -1,3 +1,3 @@
-# Heatmap Dot GO
+# Heatmap Dot Go
 
 [](./img/banner.jpg)
