@@ -1,3 +1,3 @@
 # Heatmap Dot Go
 
-[](./img/banner.jpg)
+![](./img/banner.jpg)
