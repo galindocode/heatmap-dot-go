@@ -2,21 +2,19 @@
 
 ![](./img/banner.jpg)
 
-A powerful and flexible Go library for generating heatmap visualizations. Create beautiful heatmaps as standalone images or overlay them on existing images with ease.
+A Go library for generating heatmap visualizations. Create standalone heatmaps or overlay them on existing images — including smooth Gaussian ("thermal camera") mode for realistic blending.
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/galindocode/heatmap-dot-go.svg)](https://pkg.go.dev/github.com/galindocode/heatmap-dot-go)
 [![Go Report Card](https://goreportcard.com/badge/github.com/galindocode/heatmap-dot-go)](https://goreportcard.com/report/github.com/galindocode/heatmap-dot-go)
 
 ## Features
 
-- 🎨 **Flexible Color Gradients**: Use predefined color schemes or create custom gradients with hex colors
-- 🏗️ **Dual API**: Simple constructor for quick use, Builder pattern for advanced configuration
-- 🖼️ **Standalone or Overlay**: Generate heatmaps as independent images or overlay them on existing images
-- ⚡ **High Performance**: Efficient rendering with optimized algorithms
-- 🎯 **Sub-pixel Precision**: Support for fractional coordinates for smooth visualizations
-- 🔧 **Highly Configurable**: Control point size, alpha transparency, max values, and more
-- ✅ **Well Tested**: Comprehensive test suite with >85% coverage
-- 📚 **Full Documentation**: Complete GoDoc documentation with examples
+- **Two rendering modes** — hard filled circles (default) or smooth Gaussian blobs for thermal-camera-style output
+- **Flexible color gradients** — hex colors (`#RGB`, `#RRGGBB`, `#RRGGBBAA`), any number of stops
+- **Dual API** — simple constructor for quick use, fluent builder for advanced configuration
+- **Overlay support** — composite a heatmap over any `image.Image` (camera feed, floor plan, map…)
+- **Sub-pixel precision** — fractional `float64` coordinates
+- **Configurable** — point size, alpha, max value, background color
 
 ## Installation
 
@@ -34,22 +32,15 @@ package main
 import "github.com/galindocode/heatmap-dot-go/heatmap"
 
 func main() {
-    // Create a new heatmap
     hm := heatmap.New(800, 600)
-
-    // Add data points (x, y, value)
     hm.AddPoint(400, 300, 1.0)
     hm.AddPoint(200, 150, 0.5)
     hm.AddPoint(600, 450, 0.8)
-
-    // Save as PNG
-    hm.SavePNG("heatmap.png")
+    hm.SavePNG("output.png")
 }
 ```
 
 ### Builder API
-
-For more control, use the fluent builder pattern:
 
 ```go
 hm, err := heatmap.NewBuilder().
@@ -58,299 +49,220 @@ hm, err := heatmap.NewBuilder().
     Colors("#3b82f6", "#22c55e", "#eab308", "#ef4444").
     PointSize(20).
     Alpha(200).
-    AddPoint(960, 540, 75).
-    AddPoint(400, 300, 50).
     Build()
-
 if err != nil {
     log.Fatal(err)
 }
 
-err = hm.SavePNG("heatmap.png")
-```
-
-## Usage Examples
-
-### Custom Color Gradient
-
-```go
-hm, _ := heatmap.NewBuilder().
-    Size(800, 600).
-    Colors("#000080", "#0000ff", "#00ffff", "#00ff00", "#ffff00", "#ff0000").
-    PointSize(30).
-    Build()
-
-// Add your data points
-for _, dataPoint := range myData {
-    hm.AddPoint(dataPoint.X, dataPoint.Y, dataPoint.Value)
-}
-
+hm.AddPoint(960, 540, 75)
+hm.AddPoint(400, 300, 50)
 hm.SavePNG("output.png")
 ```
 
-### Overlay on Existing Image
+## Gaussian Mode
+
+Gaussian mode renders each point as a **smooth radial blob** using a Gaussian kernel accumulated into a float64 buffer. The result looks like a thermal camera overlay:
+
+- Alpha scales proportionally with intensity — hotspots are opaque, edges fade to fully transparent
+- Overlapping points accumulate naturally in the buffer before color mapping
+- Produces the smooth blue→green→yellow→red blending typical of retail analytics or crowd tracking
 
 ```go
-// Load base image
-baseImg, err := heatmap.LoadImage("map.png")
+hm := heatmap.New(640, 424)
+hm.SetGaussianMode(true)
+hm.SetPointSize(60)   // controls blob radius; sigma = radius/3
+hm.SetAlpha(200)
+
+hm.AddPoint(320, 212, 1.0)
+hm.AddPoint(150, 100, 0.6)
+hm.SavePNG("gaussian.png")
+```
+
+### Overlay on a camera image
+
+```go
+base, err := heatmap.LoadImage("supermarket.jpg")
 if err != nil {
     log.Fatal(err)
 }
 
-// Create heatmap matching image size
-bounds := baseImg.Bounds()
+bounds := base.Bounds()
 hm := heatmap.New(bounds.Dx(), bounds.Dy())
-hm.SetAlpha(150) // More transparent for better visibility
+hm.SetGaussianMode(true)
+hm.SetPointSize(60)
+hm.SetAlpha(210)
 
-// Add data points
-hm.AddPoint(100, 100, 1.0)
-hm.AddPoint(200, 200, 0.8)
+// foot-traffic hotspots
+hm.AddPoint(320, 370, 10.0) // checkout queue
+hm.AddPoint(320,  60,  6.0) // entrance
+hm.AddPoint(120, 200,  3.0) // aisle
 
-// Generate overlay
-overlayImg, err := hm.GenerateOverlay(baseImg)
+pngBytes, err := hm.GenerateOverlayPNG(base)
 if err != nil {
     log.Fatal(err)
 }
-
-// Save result
-pngBytes, _ := heatmap.GeneratePNG(overlayImg)
 os.WriteFile("overlay.png", pngBytes, 0644)
 ```
 
-### Configuring Alpha Transparency
+### Builder with Gaussian
 
 ```go
-hm := heatmap.New(800, 600)
-hm.SetAlpha(180) // 0 = fully transparent, 255 = fully opaque
-
-// Or use builder
-hm, _ := heatmap.NewBuilder().
-    Size(800, 600).
-    Alpha(200).
+hm, err := heatmap.NewBuilder().
+    Size(640, 424).
+    Colors("#000033", "#0000ff", "#00ffff", "#00ff00", "#ffff00", "#ff4500", "#ff0000").
+    PointSize(65).
+    Alpha(220).
+    MaxValue(10.0).
+    Gaussian(true).
     Build()
 ```
 
-### Setting Max Value for Normalization
+## Rendering Modes
 
-```go
-hm := heatmap.New(800, 600)
-hm.SetMaxValue(100) // All values will be normalized against this
-
-// Or let it auto-calculate
-hm := heatmap.New(800, 600)
-// MaxValue will be automatically determined from your data
-```
-
-### Background Color
-
-```go
-import "image/color"
-
-hm, _ := heatmap.NewBuilder().
-    Size(800, 600).
-    Background(color.White). // Set white background
-    Build()
-
-// Or transparent (default)
-hm, _ := heatmap.NewBuilder().
-    Size(800, 600).
-    TransparentBackground().
-    Build()
-```
+| Feature | Circle (default) | Gaussian |
+|---|---|---|
+| Edge | Hard | Smooth fade |
+| Overlap | Additive pixel blend | Accumulated float buffer |
+| Alpha at edge | Fixed | Proportional to intensity |
+| Use case | Discrete data, charts | Thermal overlays, foot traffic |
 
 ## API Reference
 
-### Core Types
+### `heatmap.Heatmap` — simple API
 
-#### Heatmap
+| Method | Description |
+|---|---|
+| `New(w, h int) *Heatmap` | Create heatmap |
+| `AddPoint(x, y, value float64)` | Add data point |
+| `SetMaxValue(v float64)` | Max value for gradient (default: auto) |
+| `SetAlpha(a uint8)` | Transparency 0–255 (default 180) |
+| `SetPointSize(r int)` | Point radius in pixels (default 10) |
+| `SetColorScheme([]string)` | Hex color gradient stops |
+| `SetBackground(color.Color)` | Background color (default transparent) |
+| `SetGaussianMode(bool)` | Enable/disable Gaussian rendering |
+| `Clear()` | Remove all points |
+| `PointCount() int` | Number of points |
+| `Generate() (image.Image, error)` | Render to image |
+| `GeneratePNG() ([]byte, error)` | Render to PNG bytes |
+| `SavePNG(path string) error` | Render and save file |
+| `GenerateOverlay(base image.Image) (image.Image, error)` | Composite over base image |
+| `GenerateOverlayPNG(base image.Image) ([]byte, error)` | Composite and return PNG bytes |
 
-The main structure for creating heatmaps.
+### `heatmap.Builder` — fluent API
 
-```go
-type Heatmap struct {
-    // Configuration and data
-}
-```
+| Method | Description |
+|---|---|
+| `NewBuilder() *Builder` | Create builder |
+| `Size(w, h int)` | Dimensions |
+| `MaxValue(v float64)` | Max gradient value |
+| `Colors(colors ...string)` | Variadic hex colors |
+| `ColorScheme([]string)` | Slice of hex colors |
+| `PointSize(r int)` | Radius in pixels |
+| `Alpha(a uint8)` | Transparency 0–255 |
+| `Background(color.Color)` | Background color |
+| `TransparentBackground()` | Transparent background (default) |
+| `Gaussian(bool)` | Enable/disable Gaussian rendering |
+| `AddPoint(x, y, v float64)` | Add a point |
+| `AddPoints([]Point)` | Add multiple points |
+| `Build() (*Heatmap, error)` | Build |
+| `MustBuild() *Heatmap` | Build or panic |
 
-**Methods:**
-- `New(width, height int) *Heatmap` - Create new heatmap with simple API
-- `AddPoint(x, y, value float64)` - Add a data point
-- `SetMaxValue(maxValue float64)` - Set max value for normalization
-- `SetAlpha(alpha uint8)` - Set transparency (0-255)
-- `SetPointSize(size int)` - Set point radius in pixels
-- `SetColorScheme(colors []string)` - Set color gradient
-- `SetBackground(bg color.Color)` - Set background color
-- `Clear()` - Remove all data points
-- `PointCount() int` - Get number of points
-- `Generate() (image.Image, error)` - Generate heatmap image
-- `GeneratePNG() ([]byte, error)` - Generate PNG bytes
-- `SavePNG(filepath string) error` - Save as PNG file
-- `GenerateOverlay(baseImage image.Image) (image.Image, error)` - Create overlay
-
-#### Builder
-
-Fluent interface for complex configurations.
-
-```go
-type Builder struct {
-    // Builder state
-}
-```
-
-**Methods:**
-- `NewBuilder() *Builder` - Create new builder
-- `Size(width, height int) *Builder` - Set dimensions
-- `MaxValue(maxValue float64) *Builder` - Set max value
-- `ColorScheme(colors []string) *Builder` - Set colors
-- `Colors(colors ...string) *Builder` - Set colors (variadic)
-- `PointSize(size int) *Builder` - Set point size
-- `Alpha(alpha uint8) *Builder` - Set transparency
-- `Background(bg color.Color) *Builder` - Set background
-- `TransparentBackground() *Builder` - Set transparent background
-- `AddPoint(x, y, value float64) *Builder` - Add point
-- `AddPoints(points []Point) *Builder` - Add multiple points
-- `Build() (*Heatmap, error)` - Build heatmap
-- `MustBuild() *Heatmap` - Build or panic
-
-#### Point
-
-Represents a data point.
+### Utility
 
 ```go
-type Point struct {
-    X     float64 // X coordinate
-    Y     float64 // Y coordinate
-    Value float64 // Intensity/weight
-}
+heatmap.LoadImage(path string) (image.Image, error)
 ```
 
-### Error Types
+Loads PNG or JPEG files.
+
+## Color Schemes
+
+### Defaults (blue → green → yellow → red)
+
+```go
+[]string{"#3b82f6", "#22c55e", "#eab308", "#ef4444"}
+```
+
+### Infrared / thermal camera
+
+```go
+[]string{"#000033", "#0000ff", "#00ffff", "#00ff00", "#ffff00", "#ff4500", "#ff0000"}
+```
+
+### Ocean
+
+```go
+[]string{"#0d0887", "#6a00a8", "#b12a90", "#e16462", "#fca636", "#f0f921"}
+```
+
+### Supported hex formats
+
+| Format | Example | Notes |
+|---|---|---|
+| `#RGB` | `#f00` | Expanded to `#ff0000` |
+| `#RRGGBB` | `#ff0000` | Standard |
+| `#RRGGBBAA` | `#ff0000cc` | Custom alpha per stop |
+
+## Errors
 
 ```go
 var (
-    ErrInvalidSize      = errors.New("heatmap: invalid size")
-    ErrNoData           = errors.New("heatmap: no data points")
-    ErrInvalidMaxValue  = errors.New("heatmap: MaxValue must be > 0")
-    ErrInvalidPointSize = errors.New("heatmap: PointSize must be > 0")
-    ErrInvalidColor     = errors.New("heatmap: invalid color format")
-    ErrInvalidImage     = errors.New("heatmap: invalid base image")
-    ErrSizeMismatch     = errors.New("heatmap: size mismatch")
+    ErrInvalidSize      // width or height ≤ 0
+    ErrNoData           // no data points added
+    ErrInvalidMaxValue  // MaxValue ≤ 0 when explicitly set
+    ErrInvalidPointSize // PointSize ≤ 0
+    ErrInvalidColor     // unrecognised hex string
+    ErrInvalidImage     // nil base image passed to overlay
+    ErrSizeMismatch     // heatmap and base image dimensions differ
 )
 ```
 
-## Configuration Options
-
-### Color Schemes
-
-The library supports hex color formats:
-- `#RGB` - Short form (e.g., `#f00` for red)
-- `#RRGGBB` - Standard form (e.g., `#ff0000`)
-- `#RRGGBBAA` - With alpha channel (e.g., `#ff0000ff`)
-
-**Default gradient:** `["#3b82f6", "#22c55e", "#eab308", "#ef4444"]` (Blue → Green → Yellow → Red)
-
-### Point Size
-
-Default: `10` pixels
-
-Controls the radius of each data point circle.
-
-### Alpha Transparency
-
-Default: `180` (~70% opaque)
-
-Range: `0` (fully transparent) to `255` (fully opaque)
-
-### Max Value
-
-Default: `auto-calculated from data`
-
-Used for normalizing values to the color gradient.
-
-## Performance
-
-The library is optimized for performance:
-
-- Efficient circle rendering with bounding box optimization
-- Additive color blending for overlapping points
-- Minimal memory allocations
-- Suitable for real-time applications
-
-**Benchmarks** (on typical hardware):
-- 1,000 points @ 800x600: ~50ms
-- 10,000 points @ 1920x1080: ~200ms
-
 ## Examples
 
-Check out the `main.go` file for complete working examples:
+Run the bundled examples:
 
 ```bash
 go run main.go
+# → output_simple.png   simple API, random points
+# → output_builder.png  builder API, clustered hotspots
+# → output_custom.png   custom 6-stop gradient
 ```
 
-This will generate three example heatmaps:
-1. `output_simple.png` - Basic usage with simple API
-2. `output_builder.png` - Advanced usage with builder pattern
-3. `output_custom.png` - Custom gradient and configuration
+Integration tests using `supermarket.jpg` produce visual output in `heatmap/testoutput/`:
 
-## Use Cases
-
-- **Geographic Data**: Visualize density, temperature, or other spatial data
-- **User Analytics**: Click heatmaps, gaze tracking, user interaction patterns
-- **Scientific Visualization**: Temperature distributions, particle density
-- **Business Intelligence**: Sales density, foot traffic analysis
-- **Performance Monitoring**: Server latency, resource usage hotspots
+```bash
+go test ./heatmap/... -v -run Supermarket
+# → testoutput/supermarket_basic.png
+# → testoutput/supermarket_checkout_hotspot.png
+# → testoutput/supermarket_infrared.png
+# → testoutput/supermarket_gaussian.png
+# → testoutput/supermarket_circle.png
+```
 
 ## Development
 
-### Running Tests
-
 ```bash
-cd heatmap
-go test -v
+# All tests
+go test ./...
+
+# With verbose output
+go test -v ./heatmap
+
+# Benchmarks (circle vs Gaussian, splat throughput)
+go test -bench=. -benchmem ./heatmap
+
+# Coverage
+go test -cover ./heatmap
 ```
 
-### Running Benchmarks
+## Use Cases
 
-```bash
-cd heatmap
-go test -bench=. -benchmem
-```
-
-### Test Coverage
-
-```bash
-cd heatmap
-go test -cover
-```
-
-## Design Documentation
-
-For detailed architecture and design decisions, see the [design documentation](./design/README.md).
-
-## Roadmap
-
-See [ROADMAP.md](./design/06-migration-roadmap.md) for planned features and improvements.
-
-### Upcoming Features
-
-- 🔄 **Gaussian Renderer**: Smooth gradient rendering with blur
-- 📊 **Density Renderer**: KDE-based visualization
-- 🗺️ **Contour Lines**: Iso-line generation
-- ⚡ **Parallel Rendering**: Multi-core optimization
-- 🎨 **More Color Schemes**: Predefined palettes (Viridis, Plasma, etc.)
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-[MIT License](LICENSE)
-
-## Acknowledgments
-
-Inspired by heatmap libraries in other languages and designed following Go best practices.
+- **Retail analytics** — foot traffic, dwell time overlaid on floor-plan or camera feed
+- **Security** — crowd density on surveillance footage
+- **Web analytics** — click maps, scroll depth, eye-tracking
+- **Geographic data** — density maps overlaid on maps or satellite imagery
+- **Scientific visualization** — temperature distributions, particle density
+- **Performance monitoring** — latency hotspots, resource usage
 
 ---
 
