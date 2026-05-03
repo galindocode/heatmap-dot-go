@@ -111,6 +111,14 @@ func (b *Builder) TransparentBackground() *Builder {
 	return b
 }
 
+// Gaussian enables or disables Gaussian falloff rendering.
+// When true, each point is rendered as a smooth blob instead of a hard circle,
+// producing thermal-camera-style heatmaps suitable for overlay on real images.
+func (b *Builder) Gaussian(enabled bool) *Builder {
+	b.config.GaussianMode = enabled
+	return b
+}
+
 // AddPoint adds a single data point to the heatmap.
 // Coordinates can be fractional for sub-pixel precision.
 func (b *Builder) AddPoint(x, y, value float64) *Builder {

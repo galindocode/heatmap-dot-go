@@ -29,6 +29,9 @@ type Config struct {
 	// Background is the background color.
 	// If nil, the background will be transparent.
 	Background *color.Color
+
+	// GaussianMode enables smooth Gaussian falloff rendering instead of hard circles.
+	GaussianMode bool
 }
 
 // Point represents a single data point in the heatmap
@@ -51,8 +54,9 @@ func newDefaultConfig() *Config {
 		MaxValue:    nil, // Auto-calculate
 		ColorScheme: []string{"#3b82f6", "#22c55e", "#eab308", "#ef4444"},
 		PointSize:   10,
-		Alpha:       180, // ~70% opacity
-		Background:  nil, // Transparent
+		Alpha:        180, // ~70% opacity
+		Background:   nil, // Transparent
+		GaussianMode: false,
 	}
 }
 
@@ -77,6 +81,8 @@ func (c *Config) copy() *Config {
 		bg := *c.Background
 		cfg.Background = &bg
 	}
+
+	cfg.GaussianMode = c.GaussianMode
 
 	return cfg
 }

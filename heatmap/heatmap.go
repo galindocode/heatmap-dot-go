@@ -134,6 +134,14 @@ func (h *Heatmap) SetBackground(bg color.Color) {
 	h.config.Background = &bg
 }
 
+// SetGaussianMode enables smooth Gaussian falloff rendering.
+// When true, each point is rendered as a soft blob using a Gaussian kernel
+// accumulated into a float64 buffer, producing smooth blending like a thermal camera.
+// When false (default), points are rendered as hard filled circles.
+func (h *Heatmap) SetGaussianMode(enabled bool) {
+	h.config.GaussianMode = enabled
+}
+
 // Clear removes all data points from the heatmap.
 func (h *Heatmap) Clear() {
 	h.points = make([]Point, 0)
@@ -254,6 +262,10 @@ func (h *Heatmap) validate() error {
 
 // generateImage creates the actual heatmap image
 func (h *Heatmap) generateImage() (*image.RGBA, error) {
+	if h.config.GaussianMode {
+		return h.generateGaussianImage()
+	}
+
 	// Create empty canvas
 	canvas := image.NewRGBA(image.Rect(0, 0, h.config.Width, h.config.Height))
 
