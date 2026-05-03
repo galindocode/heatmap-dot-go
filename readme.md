@@ -7,6 +7,27 @@ A Go library for generating heatmap visualizations. Create standalone heatmaps o
 [![Go Reference](https://pkg.go.dev/badge/github.com/galindocode/heatmap-dot-go.svg)](https://pkg.go.dev/github.com/galindocode/heatmap-dot-go)
 [![Go Report Card](https://goreportcard.com/badge/github.com/galindocode/heatmap-dot-go)](https://goreportcard.com/report/github.com/galindocode/heatmap-dot-go)
 
+## Gallery
+
+<table>
+<tr>
+<td align="center"><b>Gaussian — standalone</b></td>
+<td align="center"><b>Foot traffic overlay</b></td>
+</tr>
+<tr>
+<td><img src="./img/demo_simple.png" width="380"/></td>
+<td><img src="./img/demo_foot_traffic.png" width="380"/></td>
+</tr>
+<tr>
+<td align="center"><b>Infrared color scheme</b></td>
+<td align="center"><b>Custom gradient (Viridis-style)</b></td>
+</tr>
+<tr>
+<td><img src="./img/demo_infrared.png" width="380"/></td>
+<td><img src="./img/demo_custom_gradient.png" width="380"/></td>
+</tr>
+</table>
+
 ## Features
 
 - **Two rendering modes** — hard filled circles (default) or smooth Gaussian blobs for thermal-camera-style output
@@ -63,6 +84,8 @@ hm.SavePNG("output.png")
 
 Gaussian mode renders each point as a **smooth radial blob** using a Gaussian kernel accumulated into a float64 buffer. The result looks like a thermal camera overlay:
 
+![Gaussian standalone heatmap](./img/demo_simple.png)
+
 - Alpha scales proportionally with intensity — hotspots are opaque, edges fade to fully transparent
 - Overlapping points accumulate naturally in the buffer before color mapping
 - Produces the smooth blue→green→yellow→red blending typical of retail analytics or crowd tracking
@@ -79,6 +102,8 @@ hm.SavePNG("gaussian.png")
 ```
 
 ### Overlay on a camera image
+
+![Foot traffic overlay](./img/demo_foot_traffic.png)
 
 ```go
 base, err := heatmap.LoadImage("supermarket.jpg")
@@ -185,11 +210,15 @@ Loads PNG or JPEG files.
 
 ### Infrared / thermal camera
 
+![Infrared overlay](./img/demo_infrared.png)
+
 ```go
 []string{"#000033", "#0000ff", "#00ffff", "#00ff00", "#ffff00", "#ff4500", "#ff0000"}
 ```
 
-### Ocean
+### Ocean / Viridis-style
+
+![Custom gradient](./img/demo_custom_gradient.png)
 
 ```go
 []string{"#0d0887", "#6a00a8", "#b12a90", "#e16462", "#fca636", "#f0f921"}

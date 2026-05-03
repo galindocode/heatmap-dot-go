@@ -2,6 +2,7 @@ package heatmap
 
 import (
 	"image"
+	"image/color"
 	"math"
 )
 
@@ -89,6 +90,8 @@ func (h *Heatmap) generateGaussianImage() (*image.RGBA, error) {
 		MaxValue: maxVal,
 	}
 
+	hasBg := h.config.Background != nil
+
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
 			v := buf[y][x]
@@ -98,8 +101,25 @@ func (h *Heatmap) generateGaussianImage() (*image.RGBA, error) {
 			ratio := v / maxBuf
 			colorValue := ratio * maxVal
 			pixelAlpha := uint8(float64(h.config.Alpha) * ratio)
-			c := gradient.GetColor(colorValue, pixelAlpha)
-			canvas.Set(x, y, c)
+			if pixelAlpha == 0 {
+				continue // leave background intact rather than overwriting with invisible pixel
+			}
+			src := color.RGBAModel.Convert(gradient.GetColor(colorValue, pixelAlpha)).(color.RGBA)
+			if hasBg {
+				// Blend heatmap over the already-filled background so the output
+				// pixel is fully opaque. Transparent edges in a dark-background
+				// image otherwise composite to white in PNG viewers.
+				bg := canvas.RGBAAt(x, y)
+				a := float64(src.A) / 255.0
+				canvas.SetRGBA(x, y, color.RGBA{
+					R: uint8(float64(src.R)*a + float64(bg.R)*(1-a)),
+					G: uint8(float64(src.G)*a + float64(bg.G)*(1-a)),
+					B: uint8(float64(src.B)*a + float64(bg.B)*(1-a)),
+					A: 255,
+				})
+			} else {
+				canvas.Set(x, y, src)
+			}
 		}
 	}
 
